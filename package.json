@@ -8,7 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
+    "@arcjet/inspect": "^1.0.0-beta.13",
+    "@arcjet/next": "^1.0.0-beta.13",
+    "@arcjet/node": "^1.0.0-beta.13",
+    "arcjet": "^1.0.0-beta.13",
     "next": "16.0.1",
-    "nodemailer": "^7.0.10"
+    "nodemailer": "^7.0.10",
+    "zod": "^4.1.12"
   }
 }
