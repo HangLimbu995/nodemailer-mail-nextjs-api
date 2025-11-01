@@ -1,5 +1,9 @@
 import nodemailer from "nodemailer";
 
+const corsHeaders  = {
+  "Access-Control-Allow-Origin":""
+}
+
 export async function GET(request) {
   return Response.json({
     success: true,
