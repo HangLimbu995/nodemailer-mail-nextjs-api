@@ -7,7 +7,7 @@ export const aj = arcjet({
     rules: [
       shield({ mode: "LIVE" }),
       detectBot({
-        mode: "DRY_RUN",
+        mode: ",
         allow: [
           "CATEGORY:SEARCH_ENGINE", 
         ],
