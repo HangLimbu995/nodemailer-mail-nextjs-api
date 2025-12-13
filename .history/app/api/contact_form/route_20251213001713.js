@@ -1,0 +1,297 @@
+import { mailTransporter } from "@/utils/transporter";
+import dns from "dns/promises";
+import { send } from "process";
+import z from "zod";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+async function isValidDomain(email) {
+  const domain = email.split("@")[1];
+  try {
+    const records = await dns.resolveMx(domain);
+    return records.length > 0;
+  } catch (error) {
+    return false;
+  }
+}
+
+const contactFormZodSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(3, { message: "Name must be at least 3 characters long." })
+    .max(50, { message: "Name must be at most 50 characters." })
+    .regex(/^[a-zA-Z\s'-]+$/, {
+      message:
+        "Name can only contain letters, spaces, apostrophes, and hyphens.",
+    }),
+  email: z
+    .string()
+    .trim()
+    .min(6, { message: "Email is required." })
+    .max(254, { message: "Email is too long." })
+    .email({ message: "Invalid email address." }),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^(\+?\d{1,3}[-.\s])?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}$/, {
+      message: "Please enter a valid phone number.",
+    })
+    .min(9, { message: "Phone number is too short." })
+    .max(20, { message: "Phone number is too long." }),
+  message: z
+    .string()
+    .trim()
+    .min(15, { message: "Message should be at least 15 characters long." })
+    .max(2000, { message: "Message is too long." })
+    .refine((val) => val.split(/\s+/).filter(Boolean).length >= 6, {
+      message: "Message should be at least 6 words.",
+    }),
+  priority: z.boolean().default(false),
+});
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const parsedData = contactFormZodSchema.safeParse(body);
+
+    if (!parsedData.success) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Validation Failed!",
+          errors: parsedData.error.format(),
+        }),
+        {
+          status: 400,
+          headers: corsHeaders,
+        }
+      );
+    }
+
+    const email = parsedData.data.email;
+    const mxValid = await isValidDomain(email);
+
+    if (!mxValid) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "The email domain is invalid or cannot receive email.",
+        }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const senderEmail = process.env.SENDER_EMAIL;
+    const pass = process.env.EMAIL_APP_PASS;
+    const receiverEmail = process.env.RECEIVER_EMAIL;
+
+    const transporter = mailTransporter("gmail", senderEmail, pass);
+
+    // 1. Email to the receiver (admin)
+    const {
+      name,
+      phone,
+      email: customerEmail,
+      message,
+      priority,
+    } = parsedData.data;
+
+    // Email Subject & Header based on Priority (with HimalayaFace branding)
+    const emailSubject = priority
+      ? "🚨 High Priority Contact Form Submission — HimalayaFace"
+      : "New Contact Form Submission — HimalayaFace";
+
+    // HimalayaFace gradient logo/text (animated shimmer effect)
+    const himalayaBanner = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <span style="
+          display: inline-block;
+          font-size: 2.1rem;
+          font-family: 'Segoe UI', Arial, sans-serif;
+          font-weight: bold;
+          letter-spacing: 1.7px;
+          background-image: linear-gradient(to right, #F9CB00, #E2792B);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          text-fill-color: transparent;
+          animation: hfaceShimmer 2.2s infinite linear alternate;
+        " class="hf-gradient-anim">HimalayaFace</span>
+        <style>
+          @keyframes hfaceShimmer {
+            0% { background-position: 0 50%; }
+            100% { background-position: 100% 50%; }
+          }
+        </style>
+      </div>
+    `;
+
+    // Animated dot loader for interactive emphasis (retains subtle gold)
+    const animatedLoader = `
+      <div style="display:inline-block;vertical-align:middle;margin-left:8px;">
+        <span style="display:inline-block;width:8px;height:8px;margin-right:2px;border-radius:50%;background:#F9CB00;animation:bounceLoader 1.3s infinite alternate;"></span>
+        <span style="display:inline-block;width:8px;height:8px;margin-right:2px;border-radius:50%;background:#E2792B;animation:bounceLoader 1.3s 0.4s infinite alternate;"></span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#F9CB00;animation:bounceLoader 1.3s 0.8s infinite alternate;"></span>
+      </div>
+      <style>
+        @keyframes bounceLoader {
+          0% { transform: translateY(0);}
+          100% { transform: translateY(-10px);}
+        }
+      </style>
+    `;
+
+    // Priority note with animated icon, and new gradient on icon
+    const priorityNote = priority
+      ? `<div style="padding: 16px; background: #ffe5e5; border-radius: 10px; color: #c0392b; font-weight: bold; margin-bottom: 24px; border: 1px solid #f9b2b2; display:flex;align-items:center;box-shadow:0 0 6px #ffd3a47a;">
+            <svg style="margin-right:14px;" width="32" height="32" viewBox="0 0 40 40">
+              <defs>
+                <linearGradient id="gradient-emergency" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#F9CB00"/>
+                  <stop offset="100%" stop-color="#E2792B"/>
+                </linearGradient>
+              </defs>
+              <circle cx="20" cy="20" r="20" fill="url(#gradient-emergency)">
+                <animate attributeName="opacity" values="1;0.7;1" dur="1.1s" repeatCount="indefinite"/>
+              </circle>
+              <text x="50%" y="61%" text-anchor="middle" fill="#fff" font-size="20" font-family="Arial" font-weight="bold">!</text>
+            </svg>
+            <span>
+              <span style="font-size: 17px;">&#9888; <i>Emergency:</i></span> Customer marked this as <u>High Priority</u>! Please respond <span style="text-decoration: underline;">ASAP</span>.
+            </span>
+          </div>`
+      ? `<div style="padding: 12px; background: #ffe5e5; border-radius: 6px; color: #c0392b; font-weight: bold; margin-bottom: 18px; border: 1px solid #f9b2b2;">
+            <span style="font-size: 18px;">🚨 EMERGENCY:</span> Customer marked this as <u>High Priority</u>! Please respond as soon as possible.
+         </div>`
+      : `<div style="padding: 12px; background: #e8f6ff; border-radius: 6px; color: #2980b9; font-weight: bold; margin-bottom: 18px; border: 1px solid #b3e2ff;">
+            New message received from the contact form.
+         </div>`;
+
+    await transporter.sendMail({
+      from: senderEmail,
+      to: receiverEmail,
+      subject: emailSubject,
+      html: `
+        <div style="font-family: Arial, sans-serif; background: #f4f6fa; padding: 40px 0;">
+          <div style="max-width:560px; margin: auto; background: #fff; border-radius: 10px; box-shadow: 0 0 6px rgba(0,0,0,0.07); overflow: hidden;">
+            <div style="background: #f9cb00; color: #000; font-size: 22px; font-weight: bold; padding: 20px 32px; text-align: center;">
+              ${emailSubject}
+            </div>
+            <div style="padding: 32px;">
+              ${priorityNote}
+              <table style="width:100%; margin-bottom: 24px; font-size:14px;">
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0; width:100px;">Name:</td>
+                  <td style="padding:6px 0;">${name}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0;">Email:</td>
+                  <td style="padding:6px 0;">${customerEmail}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0;">Phone:</td>
+                  <td style="padding:6px 0;">${phone}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0;">Priority:</td>
+                  <td style="padding:6px 0;">${
+                    priority ? "High / Emergency" : "Normal"
+                  }</td>
+                </tr>
+              </table>
+              <div style="margin-bottom:16px;">
+                <div style="font-weight:bold; margin-bottom:7px;">Message:</div>
+                <div style="padding:15px; background:#f7f7f7; border-radius:6px; color:#222;">
+                  ${message.replace(/\n/g, "<br />")}
+                </div>
+              </div>
+              <hr style="border:none;border-top:1px solid #e5e7eb; margin:30px 0 15px 0;" />
+              <div style="font-size: 13px; color: #888888;">
+                This notice was automatically generated from your website's contact form${
+                  priority ? " (HIGH PRIORITY)" : ""
+                }.
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    // 2. Email to the user, confirming receipt
+    await transporter.sendMail({
+      from: receiverEmail,
+      to: email,
+      subject: "Thank you for contacting us – We have received your message",
+      html: `
+        <div style="font-family: Arial, sans-serif; background: #f4f6fa; padding: 40px 0;">
+          <div style="max-width:560px; margin: auto; background: #fff; border-radius: 10px; box-shadow: 0 0 6px rgba(0,0,0,0.07); overflow: hidden;">
+            <div style="background: #f9cb00; color: #000; font-size: 22px; font-weight: bold; padding: 20px 32px; text-align: center;">
+              Thank you for your message!
+            </div>
+            <div style="padding: 32px;">
+              <p style="font-size: 16px; margin-bottom: 20px;">
+                Hi${name ? ` ${name}` : ""},<br><br>
+                Thank you for reaching out to us via our website contact form. We have received your message and will get back to you as soon as possible.<br>
+                Please review the details you submitted below:
+              </p>
+              <table style="width:100%; margin-bottom: 24px; font-size:14px;">
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0; width:100px;">Name:</td>
+                  <td style="padding:6px 0;">${name}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0;">Email:</td>
+                  <td style="padding:6px 0;">${customerEmail}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold;padding:6px 10px 6px 0;">Phone:</td>
+                  <td style="padding:6px 0;">${phone}</td>
+                </tr>
+              </table>
+              <div style="margin-bottom:16px;">
+                <div style="font-weight:bold; margin-bottom:7px;">Message you sent:</div>
+                <div style="padding:15px; background:#f7f7f7; border-radius:6px; color:#222;">
+                  ${message.replace(/\n/g, "<br />")}
+                </div>
+              </div>
+              <p style="font-size: 15px; margin-top: 28px;">
+                If any of this information is incorrect, please reply directly to this email to let us know.<br>
+                <br>
+                We appreciate your interest and will be in touch soon.
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb; margin:30px 0 15px 0;" />
+              <div style="font-size: 13px; color: #888888;">
+                This is an automated confirmation email. No further action is needed at this time.
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Subscription successfull",
+      }),
+      {
+        status: 200,
+        headers: corsHeaders,
+      }
+    );
+  } catch (error) {
+    console.error("POST /contact_form error: ", error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Subscription Failed",
+      }),
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
