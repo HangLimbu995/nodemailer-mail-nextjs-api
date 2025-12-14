@@ -88,18 +88,18 @@ export async function POST(request) {
       );
     }
 
-    const decision = await aj.protect(request, { requested: 1 });
+    // const decision = await aj.protect(request, { requested: 1 });
 
-    if (decision.isDenied()) {
-      if (decision.reason.isRateLimit()) {
-        return NextResponse.json(
-          { message: "Too Mahy Request", reason: decision.reason },
-          { status: 429 }
-        );
-      } else if (decision.reason.isBot()) {
-        return NextResponse.json(
-          { message: "No bots allowed", reason: decision.reason },
-          { status: 403 }
+    // if (decision.isDenied()) {
+    //   if (decision.reason.isRateLimit()) {
+    //     return NextResponse.json(
+    //       { message: "Too Mahy Request", reason: decision.reason },
+    //       { status: 429 }
+    //     );
+    //   } else if (decision.reason.isBot()) {
+    //     return NextResponse.json(
+    //       { message: "No bots allowed", reason: decision.reason },
+    //       { status: 403 }
         );
       } else {
         return NextResponse.json(

@@ -87,7 +87,7 @@ export async function POST(request) {
       );
     }
 
-    const decision = await aj.protect(request, { requested: 1 }); // Deduct 5 tokens from the bucket
+    // const decision = await aj.protect(request, { requested: 1 }); // Deduct 5 tokens from the bucket
 
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {
