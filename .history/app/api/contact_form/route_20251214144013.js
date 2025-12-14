@@ -12,15 +12,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-async function isValidDomain(email) {
-  const domain = email.split("@")[1];
-  try {
-    const records = await dns.resolveMx(domain);
-    return records.length > 0;
-  } catch (error) {
-    return false;
-  }
-}
+// async function isValidDomain(email) {
+//   const domain = email.split("@")[1];
+//   try {
+//     const records = await dns.resolveMx(domain);
+//     return records.length > 0;
+//   } catch (error) {
+//     return false;
+//   }
+// }
 
 const contactFormZodSchema = z.object({
   name: z
@@ -56,6 +56,7 @@ const client = createRemoteClient({
   token: process.env.ARCJET_KEY,
 });
 
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -78,15 +79,15 @@ export async function POST(request) {
     const email = parsedData.data.email;
     const mxValid = await isValidDomain(email);
 
-    if (!mxValid) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: "The email domain is invalid or cannot receive email.",
-        }),
-        { status: 400, headers: corsHeaders }
-      );
-    }
+    // if (!mxValid) {
+    //   return new Response(
+    //     JSON.stringify({
+    //       success: false,
+    //       message: "The email domain is invalid or cannot receive email.",
+    //     }),
+    //     { status: 400, headers: corsHeaders }
+    //   );
+    // }
 
     // const decision = await aj.protect(request, { requested: 1 });
 
@@ -127,6 +128,7 @@ export async function POST(request) {
     const pass = process.env.EMAIL_APP_PASS;
     const receiverEmail = process.env.RECEIVER_EMAIL;
 
+    
 
     if (!senderEmail || !pass || !receiverEmail) {
       console.error("Missing email environment variables!");

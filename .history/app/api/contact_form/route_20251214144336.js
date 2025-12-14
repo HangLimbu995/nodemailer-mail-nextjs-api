@@ -127,6 +127,7 @@ export async function POST(request) {
     const pass = process.env.EMAIL_APP_PASS;
     const receiverEmail = process.env.RECEIVER_EMAIL;
 
+    console.log("emails and pass", senderEmail, pass, receiverEmail);
 
     if (!senderEmail || !pass || !receiverEmail) {
       console.error("Missing email environment variables!");
