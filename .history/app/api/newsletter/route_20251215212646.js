@@ -123,7 +123,7 @@ export async function POST(request) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: "Our email system is temporarily unavailable. Please try again later.",
+          message: "Server configuration error.",
         }),
         { status: 500, headers: corsHeaders }
       );
@@ -162,7 +162,7 @@ export async function POST(request) {
     await transporter.sendMail({
       from: senderEmail,
       to: email,
-      subject: "Thank you for subscribing to our newsletter!",
+      subject: "We've received your newsletter subscription!",
       html: `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px; background-color: #f9f9f9;">
     <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); overflow: hidden;">
@@ -171,13 +171,13 @@ export async function POST(request) {
       </div>
       <div style="padding: 24px;">
         <h2 style="margin-top: 0;">Thank you for subscribing!</h2>
-        <p>We’ve received your email: <strong>${email}</strong></p>
+        <p>We have received your email: <strong>${email}</strong></p>
         <p style="font-size: 15px;">
-          You’re now on our list! We will send the latest updates and news straight to your inbox.
+          We will send you our latest news and updates to this address.
         </p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
         <p style="font-size: 13px; color: #777;">
-          This is a confirmation that your subscription was successful. Glad to have you with us!
+          This is an automated confirmation. Thank you for your interest!
         </p>
       </div>
     </div>
@@ -185,11 +185,11 @@ export async function POST(request) {
   `,
     });
 
-    // More user-guided, friendly response
+    // Success response (note: correct full/partial English)
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Thank you for subscribing! You will now receive our latest news and updates in your email.",
+        message: "Subscription successful",
       }),
       { status: 200, headers: corsHeaders }
     );
@@ -198,7 +198,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Sorry, something went wrong and we couldn’t process your subscription. Please try again in a few minutes.",
+        message: "Subscription failed",
       }),
       { status: 500, headers: corsHeaders }
     );

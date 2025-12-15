@@ -342,7 +342,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Thank you! Your message has been sent. We'll get back to you as soon as possible.",
+        message: "Submission successful",
       }),
       {
         status: 200,
@@ -354,7 +354,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Sorry, something went wrong while submitting your message. Please try again in a moment or contact us directly if this issue continues.",
+        message: "Submission Failed",
       }),
       { status: 500, headers: corsHeaders }
     );

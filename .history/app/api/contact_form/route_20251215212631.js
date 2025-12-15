@@ -82,7 +82,7 @@ export async function POST(request) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: "The email address you provided does not appear to be valid or able to receive messages. Please double-check and try again.",
+          message: "The email domain is invalid or cannot receive email.",
         }),
         { status: 400, headers: corsHeaders }
       );
@@ -93,17 +93,17 @@ export async function POST(request) {
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {
         return NextResponse.json(
-          { message: "You're submitting too fast. Please wait a moment and try again.", reason: decision.reason },
+          { message: "Too Mahy Request", reason: decision.reason },
           { status: 429 }
         );
       } else if (decision.reason.isBot()) {
         return NextResponse.json(
-          { message: "We couldn't process your request because it looks automated. Please try again if you are a real person.", reason: decision.reason },
+          { message: "No bots allowed", reason: decision.reason },
           { status: 403 }
         );
       } else {
         return NextResponse.json(
-          { message: "Your request was blocked for security reasons. If you believe this is a mistake, please contact us directly.", reason: decision.reason },
+          { message: "Forbidden", reason: decision.reason },
           { status: 403 }
         );
       }
@@ -111,14 +111,14 @@ export async function POST(request) {
 
     if (decision.ip.isHosting()) {
       return NextResponse.json(
-        { message: "We cannot accept form submissions from hosting or proxy providers. Please try again from a regular connection.", reason: decision.reason },
+        { message: "Forbidden", reason: decision.reason },
         { status: 403 }
       );
     }
 
     if (decision.results.some(isSpoofedBot)) {
       return NextResponse.json(
-        { message: "Your request has been blocked due to suspicious activity or bot detection. Please try again.", reason: decision.reason },
+        { message: "Forbidden", reason: decision.reason },
         { status: 403 }
       );
     }
@@ -127,12 +127,13 @@ export async function POST(request) {
     const pass = process.env.EMAIL_APP_PASS;
     const receiverEmail = process.env.RECEIVER_EMAIL;
 
+
     if (!senderEmail || !pass || !receiverEmail) {
       console.error("Missing email environment variables!");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "Server error: We're missing email configuration. Please try again later or contact support.",
+          message: "Server configuration error.",
         }),
         { status: 500, headers: corsHeaders }
       );
@@ -342,7 +343,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Thank you! Your message has been sent. We'll get back to you as soon as possible.",
+        message: "Submission successful",
       }),
       {
         status: 200,
@@ -354,7 +355,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Sorry, something went wrong while submitting your message. Please try again in a moment or contact us directly if this issue continues.",
+        message: "Submission Failed",
       }),
       { status: 500, headers: corsHeaders }
     );

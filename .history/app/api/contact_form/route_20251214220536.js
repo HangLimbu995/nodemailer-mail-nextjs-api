@@ -26,28 +26,28 @@ const contactFormZodSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(3, { message: "Please enter your full name (at least 3 characters)." })
-    .max(50, { message: "Name cannot exceed 50 characters." })
+    .min(3, { message: "Name must be at least 3 characters long." })
+    .max(50, { message: "Name must be at most 50 characters." })
     .regex(/^[a-zA-Z\s'-]+$/, {
       message:
         "Name can only contain letters, spaces, apostrophes, and hyphens.",
     }),
-  email: z.string().trim().email({ message: "Please provide a valid email address." }),
+  email: z.string().trim().email({ message: "Invalid email address." }),
   phone: z
     .string()
     .trim()
     .regex(/^(\+?\d{1,3}[-.\s])?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}$/, {
-      message: "Please enter a valid phone number in full.",
+      message: "Please enter a valid phone number.",
     })
-    .min(9, { message: "The phone number you entered seems too short." })
-    .max(20, { message: "The phone number you entered is too long." }),
+    .min(9, { message: "Phone number is too short." })
+    .max(20, { message: "Phone number is too long." }),
   message: z
     .string()
     .trim()
-    .min(15, { message: "Your message is too short — please provide at least 15 characters." })
-    .max(2000, { message: "Your message is too long. Please shorten it to under 2000 characters." })
+    .min(15, { message: "Message should be at least 15 characters long." })
+    .max(2000, { message: "Message is too long." })
     .refine((val) => val.split(/\s+/).filter(Boolean).length >= 6, {
-      message: "Please include at least 6 words in your message.",
+      message: "Message should be at least 6 words.",
     }),
   priority: z.boolean().default(false),
 });
@@ -65,7 +65,7 @@ export async function POST(request) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: "We couldn't process your submission. Please correct the highlighted errors below and try again.",
+          message: "Validation Failed!",
           errors: parsedData.error.format(),
         }),
         {
@@ -82,7 +82,7 @@ export async function POST(request) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: "The email address you provided does not appear to be valid or able to receive messages. Please double-check and try again.",
+          message: "The email domain is invalid or cannot receive email.",
         }),
         { status: 400, headers: corsHeaders }
       );
@@ -93,17 +93,17 @@ export async function POST(request) {
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {
         return NextResponse.json(
-          { message: "You're submitting too fast. Please wait a moment and try again.", reason: decision.reason },
+          { message: "Too Mahy Request", reason: decision.reason },
           { status: 429 }
         );
       } else if (decision.reason.isBot()) {
         return NextResponse.json(
-          { message: "We couldn't process your request because it looks automated. Please try again if you are a real person.", reason: decision.reason },
+          { message: "No bots allowed", reason: decision.reason },
           { status: 403 }
         );
       } else {
         return NextResponse.json(
-          { message: "Your request was blocked for security reasons. If you believe this is a mistake, please contact us directly.", reason: decision.reason },
+          { message: "Forbidden", reason: decision.reason },
           { status: 403 }
         );
       }
@@ -111,14 +111,14 @@ export async function POST(request) {
 
     if (decision.ip.isHosting()) {
       return NextResponse.json(
-        { message: "We cannot accept form submissions from hosting or proxy providers. Please try again from a regular connection.", reason: decision.reason },
+        { message: "Forbidden", reason: decision.reason },
         { status: 403 }
       );
     }
 
     if (decision.results.some(isSpoofedBot)) {
       return NextResponse.json(
-        { message: "Your request has been blocked due to suspicious activity or bot detection. Please try again.", reason: decision.reason },
+        { message: "Forbidden", reason: decision.reason },
         { status: 403 }
       );
     }
@@ -127,12 +127,13 @@ export async function POST(request) {
     const pass = process.env.EMAIL_APP_PASS;
     const receiverEmail = process.env.RECEIVER_EMAIL;
 
+
     if (!senderEmail || !pass || !receiverEmail) {
       console.error("Missing email environment variables!");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "Server error: We're missing email configuration. Please try again later or contact support.",
+          message: "Server configuration error.",
         }),
         { status: 500, headers: corsHeaders }
       );
@@ -342,7 +343,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Thank you! Your message has been sent. We'll get back to you as soon as possible.",
+        message: "Submission successful",
       }),
       {
         status: 200,
@@ -354,7 +355,7 @@ export async function POST(request) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Sorry, something went wrong while submitting your message. Please try again in a moment or contact us directly if this issue continues.",
+        message: "Submission Failed",
       }),
       { status: 500, headers: corsHeaders }
     );
