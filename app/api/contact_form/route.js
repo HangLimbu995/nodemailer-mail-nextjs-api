@@ -1,16 +1,20 @@
 import { mailTransporter } from "@/utils/transporter";
 import dns from "dns/promises";
 import z from "zod";
-import arcjet, { createRemoteClient, fixedWindow } from "@arcjet/node";
+import { createRemoteClient } from "@arcjet/node";
 import { NextResponse } from "next/server";
 import { isSpoofedBot } from "@arcjet/inspect";
 import { aj } from "@/utils/aj";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+export async function OPTIONS() {
+  return new Response(null, { status: 200, headers: corsHeaders });
+}
 
 async function isValidDomain(email) {
   const domain = email.split("@")[1];
@@ -32,7 +36,10 @@ const contactFormZodSchema = z.object({
       message:
         "Name can only contain letters, spaces, apostrophes, and hyphens.",
     }),
-  email: z.string().trim().email({ message: "Please provide a valid email address." }),
+  email: z
+    .string()
+    .trim()
+    .email({ message: "Please provide a valid email address." }),
   phone: z
     .string()
     .trim()
@@ -44,8 +51,14 @@ const contactFormZodSchema = z.object({
   message: z
     .string()
     .trim()
-    .min(15, { message: "Your message is too short — please provide at least 15 characters." })
-    .max(2000, { message: "Your message is too long. Please shorten it to under 2000 characters." })
+    .min(15, {
+      message:
+        "Your message is too short — please provide at least 15 characters.",
+    })
+    .max(2000, {
+      message:
+        "Your message is too long. Please shorten it to under 2000 characters.",
+    })
     .refine((val) => val.split(/\s+/).filter(Boolean).length >= 6, {
       message: "Please include at least 6 words in your message.",
     }),
@@ -58,16 +71,71 @@ const client = createRemoteClient({
 
 export async function POST(request) {
   try {
+    const decision = await aj.protect(request, { requested: 1 });
+
+    if (decision.isDenied()) {
+      if (decision.reason.isRateLimit()) {
+        return NextResponse.json(
+          {
+            message:
+              "You're submitting too fast. Please wait a moment and try again.",
+            reason: decision.reason,
+          },
+          { status: 429, headers: corsHeaders }
+        );
+      } else if (decision.reason.isBot()) {
+        return NextResponse.json(
+          {
+            message:
+              "We couldn't process your request because it looks automated. Please try again if you are a real person.",
+            reason: decision.reason,
+          },
+          { status: 403, headers: corsHeaders }
+        );
+      } else {
+        return NextResponse.json(
+          {
+            message:
+              "Your request was blocked for security reasons. If you believe this is a mistake, please contact us directly.",
+            reason: decision.reason,
+          },
+          { status: 403, headers: corsHeaders }
+        );
+      }
+    }
+
+    if (decision.ip.isHosting()) {
+      return NextResponse.json(
+        {
+          message:
+            "We cannot accept form submissions from hosting or proxy providers. Please try again from a regular connection.",
+          reason: decision.reason,
+        },
+        { status: 403, headers: corsHeaders }
+      );
+    }
+
+    if (decision.results.some(isSpoofedBot)) {
+      return NextResponse.json(
+        {
+          message:
+            "Your request has been blocked due to suspicious activity or bot detection. Please try again.",
+          reason: decision.reason,
+        },
+        { status: 403, headers: corsHeaders }
+      );
+    }
     const body = await request.json();
     const parsedData = contactFormZodSchema.safeParse(body);
 
     if (!parsedData.success) {
-      return new Response(
-        JSON.stringify({
+      return NextResponse.json(
+        {
           success: false,
-          message: "We couldn't process your submission. Please correct the highlighted errors below and try again.",
+          message:
+            "We couldn't process your submission. Please correct the highlighted errors below and try again.",
           errors: parsedData.error.format(),
-        }),
+        },
         {
           status: 400,
           headers: corsHeaders,
@@ -79,47 +147,13 @@ export async function POST(request) {
     const mxValid = await isValidDomain(email);
 
     if (!mxValid) {
-      return new Response(
-        JSON.stringify({
+      return NextResponse.json(
+        {
           success: false,
-          message: "The email address you provided does not appear to be valid or able to receive messages. Please double-check and try again.",
-        }),
+          message:
+            "The email address you provided does not appear to be valid or able to receive messages. Please double-check and try again.",
+        },
         { status: 400, headers: corsHeaders }
-      );
-    }
-
-    const decision = await aj.protect(request, { requested: 1 });
-
-    if (decision.isDenied()) {
-      if (decision.reason.isRateLimit()) {
-        return NextResponse.json(
-          { message: "You're submitting too fast. Please wait a moment and try again.", reason: decision.reason },
-          { status: 429 }
-        );
-      } else if (decision.reason.isBot()) {
-        return NextResponse.json(
-          { message: "We couldn't process your request because it looks automated. Please try again if you are a real person.", reason: decision.reason },
-          { status: 403 }
-        );
-      } else {
-        return NextResponse.json(
-          { message: "Your request was blocked for security reasons. If you believe this is a mistake, please contact us directly.", reason: decision.reason },
-          { status: 403 }
-        );
-      }
-    }
-
-    if (decision.ip.isHosting()) {
-      return NextResponse.json(
-        { message: "We cannot accept form submissions from hosting or proxy providers. Please try again from a regular connection.", reason: decision.reason },
-        { status: 403 }
-      );
-    }
-
-    if (decision.results.some(isSpoofedBot)) {
-      return NextResponse.json(
-        { message: "Your request has been blocked due to suspicious activity or bot detection. Please try again.", reason: decision.reason },
-        { status: 403 }
       );
     }
 
@@ -129,11 +163,12 @@ export async function POST(request) {
 
     if (!senderEmail || !pass || !receiverEmail) {
       console.error("Missing email environment variables!");
-      return new Response(
-        JSON.stringify({
+      return NextResponse.json(
+        {
           success: false,
-          message: "Server error: We're missing email configuration. Please try again later or contact support.",
-        }),
+          message:
+            "Server error: We're missing email configuration. Please try again later or contact support.",
+        },
         { status: 500, headers: corsHeaders }
       );
     }
@@ -339,11 +374,12 @@ export async function POST(request) {
       `,
     });
 
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         success: true,
-        message: "Thank you! Your message has been sent. We'll get back to you as soon as possible.",
-      }),
+        message:
+          "Thank you! Your message has been sent. We'll get back to you as soon as possible.",
+      },
       {
         status: 200,
         headers: corsHeaders,
@@ -351,11 +387,12 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error("POST /contact_form error: ", error);
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         success: false,
-        message: "Sorry, something went wrong while submitting your message. Please try again in a moment or contact us directly if this issue continues.",
-      }),
+        message:
+          "Sorry, something went wrong while submitting your message. Please try again in a moment or contact us directly if this issue continues.",
+      },
       { status: 500, headers: corsHeaders }
     );
   }
